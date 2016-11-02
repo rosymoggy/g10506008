@@ -191,6 +191,7 @@ function animate() {
 	}*/
 	// bounce back
 	if (pos.y <= ballR) { //pos.y = 0;
+<<<<<<< HEAD
 		// make pos.y never < ballR
 		pos.y = ballR;
 		// bounce back vel
@@ -199,6 +200,11 @@ function animate() {
 		var p = vel.clone().multiplyScalar(dt).y;
 		if(p < 0.1 && p > -0.1) {
 			vel.set (0,0,0);
+=======
+		if(vel.y > 0.0001 || vel.y < -0.0001) {
+			pos.y = ballR;
+			vel.y *= (-0.8);
+>>>>>>> c0a2eaf0a6d7f54742628ed268711262c9c934ca
 		}
 	}
 
