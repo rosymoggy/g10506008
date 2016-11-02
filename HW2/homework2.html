@@ -170,11 +170,11 @@ function animate() {
 	// force: add gravity first
 	force = new THREE.Vector3(0, -90, 0);
 	//if (pos.clone().sub(planeP).dot(planeN) <= 0) { // if contact, add contact force
-	if (pos.y < ballR) {
+	if (pos.y <= ballR) {
 		force.add(new THREE.Vector3(0, 90, 0));
 	}
 
-	if ((keyboard.down('up') || keyboard.down('space')) && pos.y <= ballR && vel.y <= 0.0001) {
+	if ((keyboard.down('up') || keyboard.down('space')) && pos.y <= ballR) {
 		vel.y += 70;
 	}
 
@@ -191,8 +191,14 @@ function animate() {
 	}*/
 	// bounce back
 	if (pos.y <= ballR) { //pos.y = 0;
-		if(vel.y > 0.0001 || vel.y < -0.0001) {
-			vel.y *= (-0.8);
+		// make pos.y never < ballR
+		pos.y = ballR;
+		// bounce back vel
+		vel.y *= -.8;
+		// not shake
+		var p = vel.clone().multiplyScalar(dt).y;
+		if(p < 0.1 && p > -0.1) {
+			vel.set (0,0,0);
 		}
 	}
 
