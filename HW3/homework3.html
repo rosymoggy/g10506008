@@ -442,6 +442,8 @@ function animate() {
 		var end = document.getElementById('endSound');
 		end.play();
 		if(end.currentTime >= 7.0) {
+			end.currentTime = 6.9;
+			end.pause();
 			alert("You get all the coins!!!\nRestart...");
 			location.reload();
 		}
