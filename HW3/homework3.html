@@ -1,0 +1,462 @@
+<html>
+<head>
+<title></title>
+<style>
+body {
+	overflow: hidden;
+}
+#mytext {
+	font-size: 1.4em;
+	color: black;
+	position: fixed;
+	width: 100%;
+	text-align: center;
+}
+#home {
+	font-size: 1.2em;
+	padding: 3px;
+	position: absolute;
+	z-index: 5;
+	width: 100%;
+	text-align: center;
+}
+#score {
+	color: white;
+	font-size: 2.5em;
+	padding: 3px;
+	position: absolute;
+	z-index: 5;
+	width: 100%;
+	bottom: -10;
+	text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="home">
+	<a href="../index.html">Back</a>
+</div>
+<div id="mytext">
+	<p>Game Programming - HW3<br>
+	Get all the coins (Reload = Random map)
+	</p>
+</div>
+<div>
+<p id="score">
+Score: 0
+</p>
+</div>
+<audio id="bkSound" autoplay loop style="display: none;">
+<source src="MarioBKSound.mp3" type="audio/mp3">
+Your browser does not support the audio element.
+</audio>
+
+<audio id="coinSound" style="display: none;">
+<source src="MarioCoinSound.mp3" type="audio/mp3">
+Your browser does not support the audio element.
+</audio>
+
+<audio id="endSound" style="display: none;">
+<source src="MarioEndSound.mp3" type="audio/mp3">
+Your browser does not support the audio element.
+</audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script type="text/javascript">
+document.oncontextmenu = function() {
+return false;
+}
+</script>
+<script >
+var scoreSum = 0;
+var camera, scene, renderer;
+var satellite, angle = 0;
+var mousePoint;
+var mouse = new THREE.Vector2();
+// gif role
+var stArray = [];
+var baseS = 0;
+var counter = 0;
+// gif coin
+var coins = [];
+var coinArray = [];
+var coinArraySite = [];
+var baseC = 0;
+var counter2 = 0;
+//var stats;
+var pos, vel, force;
+var clock = new THREE.Clock();
+var ball;
+var planeP, planeN;
+var walkStep;
+var texture_right, texture_left;
+
+var keyboard = new KeyboardState();
+
+var ballR = 5;
+init();
+animate();
+
+var ground_rand_tall;
+
+function setUpStArray() {
+	for(var i=0; i<2; i++) {
+		var row = []
+		for (var j = 0; j < 4; j++) {
+			row.push(new THREE.Vector2(j*(1/3), 1 - i));
+		}
+		stArray.push(row);
+	}
+}
+
+function setUpStArray2() {
+	for(var i=0; i<2; i++) {
+		var row = []
+		for (var j = 0; j < 11; j++) {
+			row.push(new THREE.Vector2(j*0.1, 1 - i));
+		}
+		coinArray.push(row);
+	}
+}
+
+function height (x) {
+	var y = Math.floor(x/50);
+	if(x < 0) y = -1;
+	//console.log("x:"+x+", y:"+y+", tall:"+ground_rand_tall[y]);
+	return ground_rand_tall[y];
+}
+
+function init() {
+	renderer = new THREE.WebGLRenderer({
+	antialias: true
+	});
+
+	pos = new THREE.Vector3(-20, 30, 0);
+	vel = new THREE.Vector3(0, 0, 0);
+	
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+
+	scene = new THREE.Scene();
+	camera = new THREE.OrthographicCamera(-50, 50, 80, -20, -10, 100);
+	camera.position.z = 10;
+	scene.add(camera);
+	var light = new THREE.DirectionalLight( 0xffffff );
+        light.position.set(10, 10, 0);
+        scene.add( light );
+	//////////////////////////////////////////////////////////////////////////////////////
+	setUpStArray();
+	setUpStArray2();
+	// loading texture from imgur.com
+	THREE.ImageUtils.crossOrigin = '';
+	// Plane with default texture coordinates [0,1]x[0,1]
+	for (var i = 0; i < 5; i++) {
+		var background = new THREE.Mesh(new THREE.PlaneBufferGeometry (100, 100), new THREE.MeshBasicMaterial({
+			color: 0x5599FF
+		}));
+		background.position.y = 40;
+		background.position.x = i * 100;
+		scene.add(background);
+	}
+	// cloud
+	texture_cloud = THREE.ImageUtils.loadTexture('cloud.png');
+	texture_cloud.minFilter = THREE.LinearFilter;
+	for (var i = 0; i < 21; i++) {
+		var cloud = new THREE.Mesh(new THREE.PlaneBufferGeometry (10, 10), new THREE.MeshBasicMaterial({
+			map: texture_cloud, 
+			transparent:true
+		}));
+		cloud.position.y = 60 + Math.random()*12;
+		cloud.position.x = -50 + i * 25;
+		scene.add(cloud);
+	}
+	// role
+	texture_right = THREE.ImageUtils.loadTexture('mush_right.png');
+	texture_right.minFilter = THREE.LinearFilter;
+	texture_left = THREE.ImageUtils.loadTexture('mush_left.png');
+	texture_left.minFilter = THREE.LinearFilter;
+
+	texture_gif_right = THREE.ImageUtils.loadTexture('role_right.png');
+	texture_gif_right.minFilter = THREE.LinearFilter;
+	texture_gif_left = THREE.ImageUtils.loadTexture('role_left.png');
+	texture_gif_left.minFilter = THREE.LinearFilter;
+	var material = new THREE.MeshBasicMaterial({
+		map: texture_gif_right, 
+		transparent: true, 
+		side: THREE.DoubleSide
+	});
+	//var geometry = new THREE.CircleGeometry( ballR, 30 );
+	var geometry = new THREE.Geometry();
+	geometry.vertices.push(
+	    new THREE.Vector3(-ballR, -ballR, 0),
+	    new THREE.Vector3(ballR, -ballR, 0),
+	    new THREE.Vector3(ballR, ballR, 0),
+	    new THREE.Vector3(-ballR, ballR, 0)
+	);
+	var face;
+	face = new THREE.Face3(0, 1, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(0, 2, 3);
+	geometry.faces.push(face);
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+    geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+
+    geometry.computeBoundingSphere();
+    geometry.computeFaceNormals();
+    geometry.computeVertexNormals();
+    
+	ball = new THREE.Mesh(geometry, material);
+	scene.add(ball);
+	ball.position = (10, 30, 0);
+
+	planeP = new THREE.Vector3(0, 3, 0);
+	planeN = new THREE.Vector3(0, 1, 0);
+
+	// ground
+	texture_bloc = THREE.ImageUtils.loadTexture('bloc.png');
+	texture_bloc.minFilter = THREE.LinearFilter;
+	ground_rand_tall = [];
+	for(var i=-1; i<10; i++) {
+		ground_rand_tall[i] = (Math.round((Math.random() * 3))-1)*10;
+		var ground_tall = new THREE.Mesh(new THREE.PlaneBufferGeometry (50, 50), new THREE.MeshBasicMaterial({
+			color: 0xC2A1A3
+		}));
+		if(i > 0) {
+			do {
+				ground_rand_tall[i] = (Math.round((Math.random() * 3))-1)*10;
+			} while (ground_rand_tall[i] == ground_rand_tall[i-1] || 
+					(ground_rand_tall[i]-ground_rand_tall[i-1]) > 20 ||
+					(ground_rand_tall[i]-ground_rand_tall[i-1]) < -20);
+		}
+		ground_tall.position.x = 25+i * 50;
+		ground_tall.position.y = ground_rand_tall[i]-25;
+		starts = [];
+		starts[-1] = 2; starts[0] = 0; starts[1] = -2; starts[2] = -4;
+		ksta = starts[ground_rand_tall[i]%3];
+		console.log("sta: "+ksta+", tall: "+ground_rand_tall[i]%3);
+		// 2:-4, 1:-2, 0:0, -1:2
+		for (var j=0; j<10; j++) {
+			for(var k=ksta; k<5; k++) {
+				var bloc = new THREE.Mesh(new THREE.PlaneBufferGeometry (5, 5), new THREE.MeshBasicMaterial({
+					map: texture_bloc, 
+					transparent: true
+				}));
+				bloc.position.x = 2.5+j*5+i*50;
+				bloc.position.y = -2.5 - 5*k;
+				scene.add(bloc);
+			}
+		}
+		scene.add(ground_tall);
+	}
+	// coin
+	texture_coin = THREE.ImageUtils.loadTexture('coin.png');
+	texture_coin.minFilter = THREE.LinearFilter;
+	for (var i = 0; i < 21; i++) {
+		var geometry = new THREE.Geometry();
+		geometry.vertices.push(
+		    new THREE.Vector3(-2.5, -2.5, 0),
+		    new THREE.Vector3(2.5, -2.5, 0),
+		    new THREE.Vector3(2.5, 2.5, 0),
+		    new THREE.Vector3(-2.5, 2.5, 0)
+		);
+		var face;
+		face = new THREE.Face3(0, 1, 2);
+		geometry.faces.push(face);
+		face = new THREE.Face3(0, 2, 3);
+		geometry.faces.push(face);
+		geometry.faceVertexUvs[0].push([coinArray[1][0], coinArray[1][1], coinArray[0][1]]);
+	    geometry.faceVertexUvs[0].push([coinArray[1][0], coinArray[0][1], coinArray[0][0]]);
+	    geometry.computeBoundingSphere();
+	    geometry.computeFaceNormals();
+	    geometry.computeVertexNormals();
+
+		var coin = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+			map: texture_coin, 
+			transparent: true, 
+			side: THREE.DoubleSide
+		}));
+		coin.position.x = -50 + i * 25 + Math.random()*5;
+		if(coin.position.x < -40) coin.position.x = -40;
+		if(coin.position.x > 445) coin.position.x = 445;
+		if(coin.position.x === 10) coin.position.x = 20;
+		coin.position.y = height(coin.position.x) + 25 + Math.random()*6;
+		scene.add(coin);
+		coins.push(coin);
+		coinArraySite.push(coin.position);
+	}
+	window.addEventListener('resize', onWindowResize, false);
+}
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function spriteAnimate() {
+	var geometry = ball.geometry;
+	var st0 = stArray[1][baseS];
+	var st1 = stArray[1][baseS + 1];
+	var st2 = stArray[0][baseS + 1];
+	var st3 = stArray[0][baseS];
+
+	geometry.faceVertexUvs[0] = [];
+	geometry.faceVertexUvs[0].push([st0, st1, st2]);
+	geometry.faceVertexUvs[0].push([st0, st2, st3]);
+	geometry.uvsNeedUpdate = true;
+
+	baseS = (baseS + 1) % 3;
+}
+
+function spriteAnimate2() {
+	for(var i=0; i<21; i++) {
+		var geometry = coins[i].geometry;
+		var st0 = coinArray[1][baseC];
+		var st1 = coinArray[1][baseC + 1];
+		var st2 = coinArray[0][baseC + 1];
+		var st3 = coinArray[0][baseC];
+
+		geometry.faceVertexUvs[0] = [];
+		geometry.faceVertexUvs[0].push([st0, st1, st2]);
+		geometry.faceVertexUvs[0].push([st0, st2, st3]);
+		geometry.uvsNeedUpdate = true;
+
+		baseC = (baseC + 1) % 10;
+	}
+}
+
+function animate() {
+	var dt = clock.getDelta();
+    var moveKey = false;
+    counter2++;
+    if(counter2 % 4 === 0)
+    	spriteAnimate2();
+
+	keyboard.update();
+	if (keyboard.pressed('right')) {
+		ball.material.map = texture_gif_right;
+		if(pos.x < 447) {
+			walkStep = .5;
+			pos.x += walkStep;
+		}
+		if(pos.x - camera.position.x > 25 && camera.position.x<400)
+			camera.position.x += .5;
+		moveKey = true;
+	}
+	if (keyboard.pressed('left')) {
+		ball.material.map = texture_gif_left;
+		if(pos.x > -47) {
+			walkStep = -.5;
+			pos.x += walkStep;
+		}
+		if(camera.position.x - pos.x > 25 && camera.position.x>0)
+			camera.position.x -= .5;
+		moveKey = true;
+	}
+
+	// force: add gravity first
+	force = new THREE.Vector3(0, -90, 0);
+	//if (pos.clone().sub(planeP).dot(planeN) <= 0) { // if contact, add contact force
+	if (pos.y <= ballR + height(pos.x)) {
+		force.add(new THREE.Vector3(0, 90, 0));
+	}
+
+	if ((keyboard.down('up') || keyboard.down('space')) && pos.y <= (ballR+height(pos.x)) && vel.y <= 0.0001) {
+		vel.y = 70;
+	}
+
+	if(!moveKey) {
+		var geometry = ball.geometry;
+		geometry.faceVertexUvs[0] = [];
+		geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+		geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+		geometry.uvsNeedUpdate = true;
+	} else {
+		counter++;
+		base = 1;
+	  	if (counter % 12 === 0)
+	    	spriteAnimate();
+	}
+	// then do Euler's
+	vel.add(force.clone().multiplyScalar(dt));
+	pos.add(vel.clone().multiplyScalar(dt));
+	ball.position.copy(pos);
+	// collision
+	// if (x-p).n < 0 then hit
+	/*if (pos.clone().sub(planeP).dot(planeN) < 0) {
+		vel.set (0,0,0);
+	}*/
+	// bounce back
+	//console.log(pos.x);
+	if (pos.y <= ballR + height(pos.x)) { //pos.y = 0;
+		pos.y = ballR + height(pos.x);
+		if(vel.y > 0.001 || vel.y < -0.001) {
+			//vel.y *= (-0.8);
+			vel.y = 0;
+		} else {
+			vel.y = 0;
+		}
+		//console.log("vel:"+vel.x + ","+vel.y);
+		var y = (Math.floor(pos.x)) %10;
+		if (y.toString().indexOf(".") <= -1){
+			if (walkStep > 0) {
+				if (height(pos.x + ballR) > pos.y) pos.x -= walkStep;
+				pos.y = ballR+height(pos.x);
+			} 
+			else if (walkStep < 0) {
+				if (height(pos.x - ballR) > pos.y) pos.x -= walkStep;
+				pos.y = ballR+height(pos.x);
+			}
+		}
+		/*if (vel.x > 0) {
+			if(pos.x >= 0 && pos.x<1) {
+				vel.x = 0;
+				pos.x = 0;
+				pos.y = ballR;
+			}
+		}*/
+	}
+
+	for(var i=0; i<21; i++) {
+		var site = coinArraySite[i];
+		var coinSound = document.getElementById('coinSound');
+		//coinSound.pause();
+		//coinSound.currentTime = 0;
+		if(pos.x>=site.x-3 && 
+		   pos.x<=site.x+3 && 
+		   pos.y>=site.y-3 && 
+		   pos.y<=site.y+3) {
+		   	if(!coins[i].material.visible) continue;
+			coins[i].material.visible = false;
+			coinSound.currentTime = 0.1;
+			coinSound.play();
+			scoreSum++;
+			document.getElementById('score').innerHTML = ("Score: "+scoreSum);
+			continue;
+		}
+	}
+	if(scoreSum === 21) {
+		document.getElementById('bkSound').pause();
+		var end = document.getElementById('endSound');
+		end.play();
+		if(end.currentTime >= 7.0) {
+			alert("You get all the coins!!!\nRestart...");
+			location.reload();
+		}
+	}
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+	renderer.render(scene, camera);
+}
+
+//window.focus();
+
+
+</script>
+</body>
+</html>
