@@ -1,0 +1,367 @@
+<html>
+<head>
+	<title></title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<style type="text/css">
+#info {
+  position: absolute;
+  top: 0px;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+body {
+  overflow: hidden;
+}
+
+</style>
+</head>
+<body>
+<div id="info">
+<a href="../index.html">Back</a><br/>
+Game Programming - HW5<br/>
+  <button id="moveBalls" onclick="moveBalls()">
+Ball moving
+</button>  
+<button id="restart" onclick="restart()">
+Restart
+</button></div>
+<script type="text/javascript">
+var isMove = true;
+var camera, scene, renderer, light, controls;
+var missile;
+var pos, vel, force;
+var clock = new THREE.Clock();
+var target;
+var maxSpeed = 60;
+var maxForce = 10
+var stArray = [];
+var count = 0;
+var baseS = 0, baseT = 0;
+var texMat;
+var sprite;
+var puck;
+var balls = [];
+var ballNumber = 30;
+var isDie = false;
+
+init();
+animate();
+
+function moveBalls() {
+  if(!isMove) {
+    document.getElementById('moveBalls').innerHTML = "Ball moving";
+  } else {
+    document.getElementById('moveBalls').innerHTML = "Not move";
+  }
+  isMove = !isMove;
+}
+
+function restart() {
+  location.reload();
+}
+
+function setUpStArray() {
+  for (var i = 0; i < 5; i++) {
+    var row = [];
+    for (var j = 0; j < 9; j++)
+      row.push(new THREE.Vector2(j * 0.125, 1 - 0.25 * i));
+    stArray.push(row);
+  }
+}
+
+function buildSprite() {
+
+	THREE.ImageUtils.crossOrigin = '';
+  texture = THREE.ImageUtils.loadTexture('https://i.imgur.com/6ePTx6p.png');
+  texture.minFilter = THREE.LinearFilter;
+  ////////////////////////////////////////////////////////
+  // setting up texMat
+  var texMat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,  // cutout texture: set transparent: true
+    side: THREE.DoubleSide
+  });
+
+  var w = 100;
+  var geometry = new THREE.Geometry();
+  geometry.vertices.push(
+    new THREE.Vector3(-w, -w, 0),
+    new THREE.Vector3(w, -w, 0),
+    new THREE.Vector3(w, w, 0),
+    new THREE.Vector3(-w, w, 0)
+  );
+
+  var face;
+  face = new THREE.Face3(0, 1, 2);
+  geometry.faces.push(face);
+  face = new THREE.Face3(0, 2, 3);
+  geometry.faces.push(face);
+
+  geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+  geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+
+  geometry.computeBoundingSphere();
+  geometry.computeFaceNormals();
+  geometry.computeVertexNormals();
+
+  sprite = new THREE.Mesh(geometry, texMat);
+  sprite.position.set(-200, 30, 280);
+  scene.add(sprite);
+
+  THREE.ImageUtils.crossOrigin = '';
+  texture_plane = THREE.ImageUtils.loadTexture('plane.jpg');
+  texture_plane.minFilter = THREE.LinearFilter;
+  var plane = new THREE.Mesh (new THREE.PlaneBufferGeometry(600,600), new THREE.MeshBasicMaterial({
+    map: texture_plane,
+    transparent: true,
+    side: THREE.DoubleSide
+  }));
+  plane.rotation.x = -Math.PI/2;
+  scene.add (plane);
+  var plane2 = plane.clone();
+  scene.add (plane2);
+  plane2.position.y=-1;
+  plane.position.y = 1;
+}
+
+function buildMissile() {
+  var missile = new THREE.Object3D();
+  //var normalMat = new THREE.MeshNormalMaterial();
+  var tip = new THREE.Mesh(new THREE.CylinderGeometry(0, 7, 10, 20), new THREE.MeshPhongMaterial({color: 0xff0000}));
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 20, 20), new THREE.MeshPhongMaterial({color: 0xffffff}));
+  body.add(tip);
+  tip.position.y = 10 / 2 + 20 / 2;
+  body.position.y = 20 / 2;
+
+  missile.add(body);
+  missile.rotation.z = -Math.PI / 2;
+  var missileFrame = new THREE.Object3D();
+  missileFrame.add(missile);
+  return missileFrame;
+}
+
+function buildBall() {
+	for(var i=0; i<ballNumber; i++) {
+		var c = Math.random() * 0xffffff;//+Math.random()*16*100+Math.random()*16;
+    var r = Math.random()*15+15;
+		var ball = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 32), new THREE.MeshPhongMaterial({color: c}));
+		ball.position.set(Math.random()*500-250, Math.random()*200+30, Math.random()*500-250);
+		balls.push( {ball:ball, r:r});
+		scene.add(ball);
+	}
+}
+
+function init() {
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
+  camera.position.z = 800;
+  camera.position.y = 100;
+  scene.add(camera);
+
+  light = new THREE.PointLight(0xffffff);
+  light.position.set(100, 300, 200);
+  scene.add(light);
+
+  //var gridXZ = new THREE.GridHelper(300, 30, 'red', 'white');
+  //  gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+  var gridXZ = new THREE.GridHelper(300, 10);
+    gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+  scene.add(gridXZ);
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x888888);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  document.body.appendChild(renderer.domElement);
+  ////////////////////////////////////////////////////////////////////////
+  var texture_bloc = THREE.ImageUtils.loadTexture('bloc.png');
+  texture_bloc.minFilter = THREE.LinearFilter;
+  puck = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 60), new THREE.MeshBasicMaterial({
+          map: texture_bloc, 
+          transparent: true
+        }));
+  scene.add(puck);
+  puck.position.set(-200, 30, 280);
+
+  missile = buildMissile();
+  pos = new THREE.Vector3();
+  vel = new THREE.Vector3(120, 0, 0);
+  force = new THREE.Vector3();
+
+  missile.rotation.y = 0; //-Math.PI/4;
+  missile.rotation.z = Math.PI / 6;
+  missile.position.set(-280, 0, -280);
+
+  pos.copy(missile.position);
+  vel.applyEuler(missile.rotation);
+
+  scene.add(missile);
+  target = null;
+  
+  
+  setUpStArray();
+  buildSprite();
+  buildBall();
+
+  sprite.material.visible = false;
+  window.addEventListener('resize', onWindowResize, false);
+}
+
+function vectorClamp(v, vMax) {
+  if (v.length() > vMax)
+    v.setLength(vMax);
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function spriteAnimate() {
+  var geometry = sprite.geometry;
+  var st0 = stArray[baseS + 1][baseT];
+  var st1 = stArray[baseS + 1][baseT + 1];
+  var st2 = stArray[baseS][baseT + 1];
+  var st3 = stArray[baseS][baseT];
+
+  geometry.faceVertexUvs[0] = [];
+  geometry.faceVertexUvs[0].push([st0, st1, st2]);
+  geometry.faceVertexUvs[0].push([st0, st2, st3]);
+  geometry.uvsNeedUpdate = true;
+
+  baseT = (baseT + 1) % 8;
+  if (baseT === 0) {
+    baseS = (baseS + 1) % 4;
+  }
+}
+
+function ballMove() {
+  for(var j=0; j<ballNumber; j++) {
+    var addHight = Math.random()*20-10;
+    if(balls[j].ball.position.y > 230) {
+      addHight = addHight > 0 ? -addHight : addHight;
+    }
+    if(balls[j].ball.position.y < 30) {
+      addHight = addHight < 0 ? -addHight : addHight;
+    }
+    balls[j].ball.position.y += addHight;
+  }
+}
+
+var runBomb=128;
+
+function animate() {
+	count++;
+	controls.update();
+	var dt = clock.getDelta();
+
+	sprite.lookAt (camera.position);
+  if(isMove) {
+    var modc =  5;
+    if(count % modc === 0)
+      ballMove();
+  }
+
+	// if reach 50, move to target (280,50,280)
+	if (target === null && pos.y > 50) {
+		// start seek
+		target = new THREE.Vector3(-100, 50, 280);
+	}
+
+	if (target !== null && target.distanceTo(pos) < 100) {
+		// start seek
+		target = new THREE.Vector3(-200, 0, 280);
+	}
+
+	if (target !== null && target.distanceTo(pos) < 50) {
+		vel.set(0, 0, 0);
+		target = null;
+		force.set(0, 0, 0);
+		sprite.material.visible = true;
+		puck.material.visible = false;
+		count = 0;
+		runBomb = 0;
+		console.log('bomb');
+	}
+
+	if(sprite.material.visible && runBomb<80) {
+		runBomb++;
+		if (count % 8 === 0)
+    		spriteAnimate();
+	} else {
+		sprite.material.visible = false;
+	}
+
+	if (target !== null) {
+		force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+	}
+
+	// collision avoidance
+	// (for each obstacle)
+	if(!isDie) {
+		for (var j=0; j<ballNumber; j++) {
+			var tmp = balls[j].ball.position.clone().sub(missile.position);
+			var tmpProj = tmp.clone().projectOnVector(this.vel);
+			if(tmp.length() < 40) {
+				vel.set(0, 0, 0);
+			    target = null;
+			    force.set(0, 0, 0);
+				sprite.material.visible = true;
+				balls[j].ball.material.visible = false;
+        var p = balls[j].ball.position;
+				sprite.position.set(p.x, p.y, p.z);
+				count = 0;
+				runBomb = 0;
+				isDie = true;
+				console.log('bomb');
+				break;
+				//continue;
+			}
+
+			if (tmp.dot(this.vel) > 0) {
+				if (tmpProj.clone().sub(tmp).length() < balls[j].r + 20) {
+			      	if (tmpProj.length() < 50 * this.vel.length()) {
+			    		   this.force.add (tmpProj.clone().sub(tmp).multiplyScalar(10));
+                 console.log("away");
+			        }
+			  	}
+			}
+		}
+	
+		vectorClamp(force, maxForce);
+		vel.add(force.clone().multiplyScalar(dt));
+		vectorClamp(vel, maxSpeed);
+		pos.add(vel.clone().multiplyScalar(dt));
+
+		missile.position.copy(pos);
+
+		// set orientation
+		var quaternion = new THREE.Quaternion();
+		var localDir = new THREE.Vector3(1, 0, 0);
+		var angle = localDir.angleTo(vel);
+		var axis = new THREE.Vector3();
+		axis.crossVectors(localDir, vel).normalize();
+		quaternion.setFromAxisAngle(axis, angle);
+		missile.quaternion.copy(quaternion);
+	}
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+  renderer.render(scene, camera);
+}
+
+
+</script>
+
+</body>
+</html>
