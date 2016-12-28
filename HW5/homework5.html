@@ -146,11 +146,12 @@ function buildMissile() {
 
 function buildBall() {
 	for(var i=0; i<ballNumber; i++) {
-		var c = Math.random() * 0xffffff;//+Math.random()*16*100+Math.random()*16;
+		var c = 0xffffff - Math.random() * 0x888888;//+Math.random()*16*100+Math.random()*16;
     var r = Math.random()*15+15;
 		var ball = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 32), new THREE.MeshPhongMaterial({color: c}));
 		ball.position.set(Math.random()*500-250, Math.random()*200+30, Math.random()*500-250);
-		balls.push( {ball:ball, r:r});
+    var a = Math.random()*5+1;
+		balls.push( {ball:ball, r:r, addHight:a});
 		scene.add(ball);
 	}
 }
@@ -242,17 +243,12 @@ function spriteAnimate() {
     baseS = (baseS + 1) % 4;
   }
 }
-
 function ballMove() {
   for(var j=0; j<ballNumber; j++) {
-    var addHight = Math.random()*20-10;
-    if(balls[j].ball.position.y > 230) {
-      addHight = addHight > 0 ? -addHight : addHight;
+    if(balls[j].ball.position.y > 230 || balls[j].ball.position.y < 30) {
+      balls[j].addHight = -balls[j].addHight;
     }
-    if(balls[j].ball.position.y < 30) {
-      addHight = addHight < 0 ? -addHight : addHight;
-    }
-    balls[j].ball.position.y += addHight;
+    balls[j].ball.position.y += balls[j].addHight;
   }
 }
 
